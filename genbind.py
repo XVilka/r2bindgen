@@ -109,17 +109,17 @@ def gen_python_bindings(outdir, path):
     from ctypeslib.codegen import codegenerator
     pyout = StringIO()
     fname = os.path.splitext(os.path.basename(path))[0]
-    parser = clangparser.Clang_Parser(flags = [])
+    # TODO: Make it configurable
+    clang_opts = ["-I/usr/local/include/libr", \
+            "-I/usr/local/include", "-I/usr/local/include/libr/include"]
+    parser = clangparser.Clang_Parser(flags = clang_opts)
     items = parser.parse(path)
     if items is None:
         print("Error parsing {0} file!\n".format(fname))
         return False
-    # TODO: Make it configurable
-    clang_opts = ["-I/usr/local/include/libr", \
-            "-I/usr/local/include", "-I/usr/local/include/libr/include"]
     gen = codegenerator.Generator(pyout)
     # See ctypeslib/clang2py.py for more options
-    gen.generate(parser, items, flags=clang_opts, verbose=True)
+    gen.generate(parser, items, flags=[], verbose=True)
     outfname = outdir + "/" + fname + ".py"
     with fopen(outfname, "w") as f:
         f.write(pyout.getvalue())
