@@ -2,7 +2,9 @@
 import sys
 import os.path
 import logging
-from subprocess import call
+import tempfile
+import subprocess
+from subprocess import call, check_output
 # Python 2 legacy hack
 try:
     from StringIO import StringIO
@@ -12,8 +14,14 @@ except:
 # --------------------------------------------------------------------
 #                        Helper functions
 def which(program):
+    def is_file(fpath):
+        if sys.version_info >= (3,0):
+            return os.path.is_file(fpath)
+        else:
+            return os.path.isfile(fpath)
+
     def is_exe(fpath):
-        return os.path.is_file(fpath) and os.access(fpath, os.X_OK)
+        return is_file(fpath) and os.access(fpath, os.X_OK)
 
     fpath, fname = os.path.split(program)
     if fpath:
@@ -26,6 +34,29 @@ def which(program):
                 return exe_file
 
     return None
+
+# --------------------------------------------------------------------
+#                        Global values
+def read_file_list():
+    return [
+            "/usr/local/include/libr/r_core.h",
+            "/usr/local/include/libr/r_asm.h",
+            "/usr/local/include/libr/r_anal.h",
+            "/usr/local/include/libr/r_bin.h",
+            "/usr/local/include/libr/r_debug.h",
+            "/usr/local/include/libr/r_io.h",
+            "/usr/local/include/libr/r_config.h",
+            "/usr/local/include/libr/r_flag.h",
+            "/usr/local/include/libr/r_sign.h",
+            "/usr/local/include/libr/r_hash.h",
+            "/usr/local/include/libr/r_diff.h",
+            "/usr/local/include/libr/r_egg.h",
+            "/usr/local/include/libr/r_fs.h",
+            "/usr/local/include/libr/r_lang.h",
+            "/usr/local/include/libr/r_pdb.h"
+            ]
+
+outdir = "/home/akochkov/data/tmp/r2-api"
 
 # --------------------------------------------------------------------
 
@@ -66,6 +97,9 @@ def check_go_requirements():
         return False
     # Check for Go version
     # Check if "go get github.com/xlab/c-for-go" is installed
+    if which("c-for-go") is None:
+        print("c-for-go is not installed!\n")
+        return False
     return True
 
 def check_lua_requirements():
@@ -142,9 +176,44 @@ def gen_rust_bindings(outdir, path):
     call(cmdline, shell=True)
     return True
 
+cgo_tmpl = """
+---
+GENERATOR:
+    PackageName: radare2
+    PackageDescription: "Package radare2 provides Go bindings for radare2 reverse engineering library"
+    PackageLicense: "LGPLv3"
+    PkgConfigOpts: [libr]
+    Includes: {0}
+
+PARSER:
+    IncludePaths: ["/usr/include","/usr/include/linux", "/usr/local/include", "/usr/local/include/libr"]
+    SourcesPaths: {1}
+
+TRANSLATOR:
+    ConstRules:
+        defines: eval
+    Rules:
+        global:
+            - {{action: accept, from "^r_"}}
+            - {{transform: export}}
+        private:
+            - {{transform: unexport}}
+"""
+
 def gen_go_bindings(outdir, path):
     def gen_yaml_manifest():
-        pass
+        cgo_yaml = cgo_tmpl.format(read_file_list(), read_file_list())
+        return cgo_yaml
+
+    yml = gen_yaml_manifest()
+    #tmpf = tempfile.NamedTemporaryFile(delete=False)
+    tmpfname = "radare2.yml"
+    tmpf = open(tmpfname, "w")
+    tmpf.write(yml)
+    print("Writing YAML file: {0}".format(tmpfname))
+    cmdline = "c-for-go -ccdefs -ccincl {0}".format(tmpfname)
+    call(cmdline, shell=True)
+    tmpf.close()
     return True
 
 # 2. Read the list of the headers and parse them
@@ -164,37 +233,21 @@ def check_go_bindings(outdir):
 # -------------------------------------------------------
 
 def check_requirements():
-    return check_python_requirements()
+    result = True
+    result &= check_python_requirements()
+    result &= check_rust_requirements()
+    result &= check_go_requirements()
+    return result
 
 # TODO: Better fail check
 def gen_bindings(outdir, path):
-    result = gen_python_bindings(outdir, path)
+    result = True
+    result &= gen_python_bindings(outdir, path)
     result &= gen_rust_bindings(outdir, path)
     return result
 
 def check_bindings(outdir):
     return True
-
-def read_file_list():
-    return [
-            "/usr/local/include/libr/r_core.h",
-            "/usr/local/include/libr/r_asm.h",
-            "/usr/local/include/libr/r_anal.h",
-            "/usr/local/include/libr/r_bin.h",
-            "/usr/local/include/libr/r_debug.h",
-            "/usr/local/include/libr/r_io.h",
-            "/usr/local/include/libr/r_config.h",
-            "/usr/local/include/libr/r_flag.h",
-            "/usr/local/include/libr/r_sign.h",
-            "/usr/local/include/libr/r_hash.h",
-            "/usr/local/include/libr/r_diff.h",
-            "/usr/local/include/libr/r_egg.h",
-            "/usr/local/include/libr/r_fs.h",
-            "/usr/local/include/libr/r_lang.h",
-            "/usr/local/include/libr/r_pdb.h"
-            ]
-
-outdir = "/home/akochkov/data/tmp/r2-api"
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)s %(message)s")
@@ -203,5 +256,7 @@ if __name__ == "__main__":
     if check_requirements():
         for f in lst:
             gen_bindings(outdir, f)
+        # Go bindings generated all at once
+        gen_go_bindings(outdir, f)
         check_bindings(outdir)
 
