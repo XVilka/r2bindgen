@@ -35,6 +35,24 @@ def which(program):
 
     return None
 
+# For now works only for GCC
+def get_compiler_include_paths():
+    startline = "#include <...> search starts here:"
+    cmdline = ["cpp", "-v", "/dev/null", "-o", "/dev/null"]
+    p = subprocess.Popen(cmdline, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    out, err = p.communicate()
+    # Interesting output is in stderr:
+    lines = err.split('\n')
+    includes = []
+    if startline in lines:
+        start = lines.index(startline)
+        end = len(lines) - start
+        for i in range(1, end):
+            line = lines[start + i].lstrip()
+            if os.path.exists(os.path.dirname(line)):
+                includes  += [line]
+    return includes
+
 # --------------------------------------------------------------------
 #                        Global values
 def read_file_list():
@@ -57,6 +75,8 @@ def read_file_list():
             ]
 
 outdir = "/home/akochkov/data/tmp/r2-api"
+# -I/usr/local/include - form strings like that
+c_includes = ["-I" + s for s in get_compiler_include_paths()]
 
 # --------------------------------------------------------------------
 
@@ -143,9 +163,13 @@ def gen_python_bindings(outdir, path):
     from ctypeslib.codegen import codegenerator
     pyout = StringIO()
     fname = os.path.splitext(os.path.basename(path))[0]
+    print(get_compiler_include_paths())
     # TODO: Make it configurable
-    clang_opts = ["-I/usr/local/include/libr", \
-            "-I/usr/local/include", "-I/usr/local/include/libr/include"]
+    clang_opts = [
+            "-I/usr/local/include/libr",
+            "-I/usr/local/include/libr/include"
+            ] + c_includes
+
     parser = clangparser.Clang_Parser(flags = clang_opts)
     items = parser.parse(path)
     if items is None:
