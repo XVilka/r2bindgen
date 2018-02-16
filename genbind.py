@@ -209,6 +209,7 @@ def gen_rust_bindings(outdir, path):
     # Add the include directory, for angled includes
     cmdline += " -- -I/usr/local/include/libr"
     # run it
+    # TODO: Check return code
     call(cmdline, shell=True)
     return True
 
@@ -251,13 +252,40 @@ def gen_go_bindings(outdir, path):
     tmpf.write(yml)
     print("Writing YAML file: {0}".format(tmpfname))
     cmdline = "c-for-go -ccdefs -ccincl {0}".format(tmpfname)
+    # TODO: Check return code
     call(cmdline, shell=True)
     tmpf.close()
     return True
 
-# 2. Read the list of the headers and parse them
+chs = """
+{{-#LANGUAGE ForeignFunctionInterface #-}}
 
-# 3. Check/autotest the result
+import Foreign.C.Types
+import Foreign.Ptr
+import Foreign.Storable
+
+#include "{0}"
+"""
+
+def gen_haskell_bindings(outdir, path):
+    def gen_chs(fname):
+        return chs.format(fname)
+
+    fname = os.path.splitext(os.path.basename(path))[0]
+    cpp_opts = "-I/usr/local/libr"
+    tmpchs = gen_chs(fname + ".h")
+    tmpfname = fname + ".chs"
+    tmpf = open(tmpfname, "w")
+    tmpf.write(tmpchs)
+    print("Writing CHS file: {0}".format(tmpfname))
+    cmdline = "c2hs -t {0} -C {1} {2}".format(outdir, cpp_opts, tmpfname)
+    # TODO: Check return code
+    call(cmdline, shell=True)
+    tmpf.close()
+    return True
+
+# -------------------------------------------------------
+# Check/autotest the result
 
 def check_python_bindings(outdir):
     print("Python bindings are generated and working properly!\n")
@@ -276,6 +304,7 @@ def check_requirements():
     langs["python"] = check_python_requirements()
     langs["rust"] = check_rust_requirements()
     langs["go"] = check_go_requirements()
+    langs["haskell"] = check_haskell_requirements()
     return result
 
 # TODO: Better fail check
@@ -285,6 +314,8 @@ def gen_bindings(outdir, path):
         result &= gen_python_bindings(outdir, path)
     if langs["rust"]:
         result &= gen_rust_bindings(outdir, path)
+    if langs["haskell"]:
+        result &= gen_haskell_bindings(outdir, path)
     return result
 
 def check_bindings(outdir):

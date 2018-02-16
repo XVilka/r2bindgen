@@ -2,4 +2,8 @@
 *.swp
 *.swo
 *.pyc
+*.chs
+*.hs
+*.yml
+*.h
 
