@@ -3,6 +3,7 @@ import sys
 import os.path
 import logging
 import tempfile
+import argparse
 import subprocess
 from subprocess import call, check_output
 # Python 2 legacy hack
@@ -60,27 +61,27 @@ def get_radare2_include_paths():
 # --------------------------------------------------------------------
 #                        Global values
 def read_file_list():
+    basedir = "/usr/local/include/libr/"
     return [
-            "/usr/local/include/libr/r_core.h",
-            "/usr/local/include/libr/r_asm.h",
-            "/usr/local/include/libr/r_anal.h",
-            "/usr/local/include/libr/r_bin.h",
-            "/usr/local/include/libr/r_debug.h",
-            "/usr/local/include/libr/r_io.h",
-            "/usr/local/include/libr/r_config.h",
-            "/usr/local/include/libr/r_flag.h",
-            "/usr/local/include/libr/r_sign.h",
-            "/usr/local/include/libr/r_hash.h",
-            "/usr/local/include/libr/r_diff.h",
-            "/usr/local/include/libr/r_egg.h",
-            "/usr/local/include/libr/r_fs.h",
-            "/usr/local/include/libr/r_lang.h",
-            "/usr/local/include/libr/r_pdb.h"
+            basedir + "r_core.h",
+            basedir + "r_asm.h",
+            basedir + "r_anal.h",
+            basedir + "r_bin.h",
+            basedir + "r_debug.h",
+            basedir + "r_io.h",
+            basedir + "r_config.h",
+            basedir + "r_flag.h",
+            basedir + "r_sign.h",
+            basedir + "r_hash.h",
+            basedir + "r_diff.h",
+            basedir + "r_egg.h",
+            basedir + "r_fs.h",
+            basedir + "r_lang.h",
+            basedir + "r_pdb.h"
             ]
 
-outdir = "/home/akochkov/data/tmp/r2-api"
+# -I/usr/local/include - form strings like this
 r2_includes = ["-I" + s for s in get_radare2_include_paths()]
-# -I/usr/local/include - form strings like tht
 c_includes = ["-I" + s for s in get_compiler_include_paths()]
 
 langs = {
@@ -151,7 +152,9 @@ def check_rust_requirements():
         print("Cargo is not installed!\n")
         return False
     # Check if "bindgen" is installed
-    # TODO: Use output of cargo?
+    if which("bindgen") is None:
+        print("rust-bindgen is not installed!\n")
+        return False
     return True
 
 def check_haskell_requirements():
@@ -323,6 +326,10 @@ def check_bindings(outdir):
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)s %(message)s")
+    parser = argparse.ArgumentParser(description="Generate language bindings")
+    parser.add_argument("-o", "--out", nargs="+", help="Output directory")
+    args = parser.parse_args()
+    outdir = args.out[0]
     lst = read_file_list()
     # Python bindings
     if check_requirements():
