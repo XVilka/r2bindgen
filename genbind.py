@@ -53,6 +53,10 @@ def get_compiler_include_paths():
                 includes  += [line]
     return includes
 
+# FIXME: get this from "r2 -H" output, see INCDIR variable
+def get_radare2_include_paths():
+    return ["/usr/local/include/libr", "/usr/local/include/libr/include"]
+
 # --------------------------------------------------------------------
 #                        Global values
 def read_file_list():
@@ -75,8 +79,19 @@ def read_file_list():
             ]
 
 outdir = "/home/akochkov/data/tmp/r2-api"
-# -I/usr/local/include - form strings like that
+r2_includes = ["-I" + s for s in get_radare2_include_paths()]
+# -I/usr/local/include - form strings like tht
 c_includes = ["-I" + s for s in get_compiler_include_paths()]
+
+langs = {
+    "python": False,
+    "ruby" : False,
+    "go" : False,
+    "lua" : False,
+    "rust" : False,
+    "haskell" : False,
+    "ocaml" : False
+}
 
 # --------------------------------------------------------------------
 
@@ -165,10 +180,7 @@ def gen_python_bindings(outdir, path):
     fname = os.path.splitext(os.path.basename(path))[0]
     print(get_compiler_include_paths())
     # TODO: Make it configurable
-    clang_opts = [
-            "-I/usr/local/include/libr",
-            "-I/usr/local/include/libr/include"
-            ] + c_includes
+    clang_opts = r2_includes + c_includes
 
     parser = clangparser.Clang_Parser(flags = clang_opts)
     items = parser.parse(path)
@@ -210,8 +222,10 @@ GENERATOR:
     Includes: {0}
 
 PARSER:
-    IncludePaths: ["/usr/include","/usr/include/linux", "/usr/local/include", "/usr/local/include/libr"]
-    SourcesPaths: {1}
+    IncludePaths: {1}
+    SourcesPaths: {2}
+    Defines:
+        __UNIX__: 1
 
 TRANSLATOR:
     ConstRules:
@@ -226,7 +240,8 @@ TRANSLATOR:
 
 def gen_go_bindings(outdir, path):
     def gen_yaml_manifest():
-        cgo_yaml = cgo_tmpl.format(read_file_list(), read_file_list())
+        cgo_yaml = cgo_tmpl.format(read_file_list(), get_compiler_include_paths() + \
+                get_radare2_include_paths(), read_file_list())
         return cgo_yaml
 
     yml = gen_yaml_manifest()
@@ -258,16 +273,18 @@ def check_go_bindings(outdir):
 
 def check_requirements():
     result = True
-    result &= check_python_requirements()
-    result &= check_rust_requirements()
-    result &= check_go_requirements()
+    langs["python"] = check_python_requirements()
+    langs["rust"] = check_rust_requirements()
+    langs["go"] = check_go_requirements()
     return result
 
 # TODO: Better fail check
 def gen_bindings(outdir, path):
     result = True
-    result &= gen_python_bindings(outdir, path)
-    result &= gen_rust_bindings(outdir, path)
+    if langs["python"]:
+        result &= gen_python_bindings(outdir, path)
+    if langs["rust"]:
+        result &= gen_rust_bindings(outdir, path)
     return result
 
 def check_bindings(outdir):
@@ -281,6 +298,7 @@ if __name__ == "__main__":
         for f in lst:
             gen_bindings(outdir, f)
         # Go bindings generated all at once
-        gen_go_bindings(outdir, f)
+        if langs["go"]:
+            gen_go_bindings(outdir, f)
         check_bindings(outdir)
 
