@@ -37,7 +37,8 @@ def which(program):
     return None
 
 # For now works only for GCC
-def get_compiler_include_paths():
+# TODO: Fix, since it depends on locale
+def get_gcc_include_paths():
     startline = "#include <...> search starts here:"
     cmdline = ["cpp", "-v", "/dev/null", "-o", "/dev/null"]
     p = subprocess.Popen(cmdline, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
@@ -53,6 +54,11 @@ def get_compiler_include_paths():
             if os.path.exists(os.path.dirname(line)):
                 includes  += [line]
     return includes
+
+cpp_includes = get_gcc_include_paths()
+
+def get_compiler_include_paths():
+    return cpp_includes
 
 # FIXME: get this from "r2 -H" output, see INCDIR variable
 def get_radare2_include_paths():
@@ -222,7 +228,7 @@ GENERATOR:
     PackageName: radare2
     PackageDescription: "Package radare2 provides Go bindings for radare2 reverse engineering library"
     PackageLicense: "LGPLv3"
-    PkgConfigOpts: [libr]
+    PkgConfigOpts: [r_core,r_asm,r_anal,r_io,r_debug,r_bin,r_config,r_cons]
     Includes: {0}
 
 PARSER:
@@ -329,14 +335,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate language bindings")
     parser.add_argument("-o", "--out", nargs="+", help="Output directory")
     args = parser.parse_args()
-    outdir = args.out[0]
-    lst = read_file_list()
-    # Python bindings
-    if check_requirements():
-        for f in lst:
-            gen_bindings(outdir, f)
-        # Go bindings generated all at once
-        if langs["go"]:
-            gen_go_bindings(outdir, f)
-        check_bindings(outdir)
+    if args.out is not None:
+        outdir = args.out[0]
+        lst = read_file_list()
+        # Python bindings
+        if check_requirements():
+            for f in lst:
+                gen_bindings(outdir, f)
+            # Go bindings generated all at once
+            if langs["go"]:
+                gen_go_bindings(outdir, f)
+            check_bindings(outdir)
+    else:
+        parser.print_help()
 
