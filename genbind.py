@@ -236,7 +236,7 @@ def gen_rust_bindings(outdir, path):
     outpath = outdir + "/" + fname + ".rs"
     cmdline = "bindgen {0} -o {1}".format(path, outpath)
     # Add the include directory, for angled includes
-    cmdline += " -- -I/usr/local/include/libr"
+    cmdline += " -- -I" + radare2_includedir
     # run it
     # TODO: Check return code
     call(cmdline, shell=True)
