@@ -12,6 +12,8 @@ try:
 except:
     from io import StringIO
 
+# TODO: Better Python3 support
+
 # --------------------------------------------------------------------
 #                        Helper functions
 def which(program):
@@ -55,19 +57,32 @@ def get_gcc_include_paths():
                 includes  += [line]
     return includes
 
-cpp_includes = get_gcc_include_paths()
+def get_radare2_include_dir():
+    r2indir = "/usr/local/include/libr" # default value
+    cmdline = ["r2", "-H"]
+    p = subprocess.Popen(cmdline, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    out, err = p.communicate()
+    lines = out.split('\n')
+    for l in lines:
+        if l.startswith('INCDIR='):
+            r2incdir = l[7:]
+
+    return r2incdir
+
+cpp_includedirs = get_gcc_include_paths()
+radare2_includedir = get_radare2_include_dir()
 
 def get_compiler_include_paths():
-    return cpp_includes
+    return cpp_includedirs
 
-# FIXME: get this from "r2 -H" output, see INCDIR variable
 def get_radare2_include_paths():
-    return ["/usr/local/include/libr", "/usr/local/include/libr/include"]
+    print(radare2_includedir)
+    return [radare2_includedir]
 
 # --------------------------------------------------------------------
 #                        Global values
 def read_file_list():
-    basedir = "/usr/local/include/libr/"
+    basedir = radare2_includedir + "/"
     return [
             basedir + "r_core.h",
             basedir + "r_asm.h",
@@ -103,6 +118,8 @@ langs = {
 # --------------------------------------------------------------------
 
 # 1. Check if all needed executables and libraries are installed
+# TODO: Check if versions are good enough
+# TODO: Write a message on howto install missing dependencies
 
 def check_python_requirements():
     # Check if Clang/LLVM is installed
@@ -166,12 +183,15 @@ def check_rust_requirements():
 def check_haskell_requirements():
     # Check if GHC is installed
     if which("ghc") is None:
+        print("GHC is not installed!\n")
         return False
     # Check if Cabal is installed
     if which("cabal") is None:
+        print("cabal is not installed!\n")
         return False
     # Check if "c2hs" is installed (cabal install c2hs)
     if which("c2hs") is None:
+        print("c2hs is not installed!\n")
         return False
     return True
 
@@ -273,7 +293,7 @@ import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.Storable
 
-#include "{0}"
+#include "/usr/local/include/{0}"
 """
 
 def gen_haskell_bindings(outdir, path):
@@ -281,13 +301,14 @@ def gen_haskell_bindings(outdir, path):
         return chs.format(fname)
 
     fname = os.path.splitext(os.path.basename(path))[0]
-    cpp_opts = "-I/usr/local/libr"
+    cpp_opts = " ".join(r2_includes)
     tmpchs = gen_chs(fname + ".h")
     tmpfname = fname + ".chs"
     tmpf = open(tmpfname, "w")
     tmpf.write(tmpchs)
     print("Writing CHS file: {0}".format(tmpfname))
-    cmdline = "c2hs -t {0} -C {1} {2}".format(outdir, cpp_opts, tmpfname)
+    cmdline = "c2hs -d trace -d genbind -d ctrav -k -t {0} -C \"{1}\" {2}".format(outdir, cpp_opts, tmpfname)
+    print(cmdline)
     # TODO: Check return code
     call(cmdline, shell=True)
     tmpf.close()
@@ -330,6 +351,8 @@ def gen_bindings(outdir, path):
 def check_bindings(outdir):
     return True
 
+# TODO: add language selection option
+# TODO: add debug option
 if __name__ == "__main__":
     logging.basicConfig(format="%(asctime)s %(message)s")
     parser = argparse.ArgumentParser(description="Generate language bindings")
